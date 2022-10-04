@@ -1,0 +1,15 @@
+menu "Project Configuration"
+
+    config WIFI_SSID
+        string "Wi-Fi SSID"
+        default "ssid_value"
+        help
+            Wi-Fi SSID value
+
+    config WIFI_PASSWORD
+        string "Wi-Fi password"
+        default "password_value"
+        help
+            Wi-Fi password
+
+endmenu
