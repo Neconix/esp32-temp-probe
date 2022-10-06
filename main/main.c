@@ -20,6 +20,7 @@
 #define AP_WIFI_SSID CONFIG_WIFI_SSID
 #define AP_WIFI_PASS CONFIG_WIFI_PASSWORD
 
+// Manual config
 #define AP_WIFI_CHANNEL 1
 #define SENSOR_DATA_PIN 4
 #define LED_PIN 14
