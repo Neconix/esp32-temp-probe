@@ -1,5 +1,5 @@
 /* 
- * Probe HTTP Server
+ * Temperature sensor HTTP Server
 */
 
 #include <esp_wifi.h>
@@ -27,7 +27,9 @@
 
 static const char *TAG = "probe";
 static float temperature = 0;
-static bool wifi_connected = false;
+static bool connected = false;
+static httpd_handle_t server = NULL;
+
 
 /* An HTTP GET handler */
 static esp_err_t root_handler(httpd_req_t *req)
@@ -76,7 +78,6 @@ static httpd_handle_t start_webserver(void)
     config.lru_purge_enable = true;
 
     // Start the httpd server
-    ESP_LOGI(TAG, "Starting server on port: '%d'", config.server_port);
     if (httpd_start(&server, &config) == ESP_OK) {
         // Set URI handlers
         ESP_LOGI(TAG, "Registering URI handlers");
@@ -87,33 +88,6 @@ static httpd_handle_t start_webserver(void)
 
     ESP_LOGI(TAG, "Error starting server!");
     return NULL;
-}
-
-static void stop_webserver(httpd_handle_t server)
-{
-    // Stop the httpd server
-    httpd_stop(server);
-}
-
-static void disconnect_handler(void* arg, esp_event_base_t event_base,
-                               int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server) {
-        ESP_LOGI(TAG, "Stopping webserver");
-        stop_webserver(*server);
-        *server = NULL;
-    }
-}
-
-static void connect_handler(void* arg, esp_event_base_t event_base,
-                            int32_t event_id, void* event_data)
-{
-    httpd_handle_t* server = (httpd_handle_t*) arg;
-    if (*server == NULL) {
-        ESP_LOGI(TAG, "Starting webserver");
-        *server = start_webserver();
-    }
 }
 
 /**
@@ -163,7 +137,7 @@ void led_thread(void *pvParameters)
 
     for (;;)
     {
-        if (wifi_connected) {
+        if (connected) {
             gpio_set_level(LED_PIN, 1);
             vTaskDelay(3000 / portTICK_PERIOD_MS);
             continue;
@@ -176,30 +150,42 @@ void led_thread(void *pvParameters)
     }
 }
 
-void connected_handler(void)
+void wifi_connected(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
 {
-    ESP_LOGI(TAG, "Connected from handler");
+    ip_event_got_ip_t* event = (ip_event_got_ip_t*) event_data;
+    connected = true;
+    ESP_LOGI(TAG, "Starting server on %d.%d.%d.%d:80", IP2STR(&event->ip_info.ip));
+    server = start_webserver();
+
+}
+
+void wifi_disconnected(void* arg, esp_event_base_t event_base, int32_t event_id, void* event_data)
+{
+    ESP_LOGI(TAG, "Disconnected from handler");
+
+    connected = false;
+
+    if (server == NULL) {
+        return;
+    }
+
+    ESP_ERROR_CHECK(
+        httpd_stop(server)
+    );
 }
 
 void app_main(void)
 {
-    static httpd_handle_t server = NULL;
-
     xTaskCreate(led_thread, "LedThread", 1024 * 6, NULL, 2, NULL);
     xTaskCreate(temperature_poll, "TemperaturePollingThread", 1024 * 6, NULL, 2, NULL);
 
     ESP_ERROR_CHECK(nvs_flash_erase());
     ESP_ERROR_CHECK(nvs_flash_init());
 
-    wifi_connected = wifi_init_station(
+    wifi_init_station(
         AP_WIFI_SSID,
-        AP_WIFI_PASS
+        AP_WIFI_PASS,
+        wifi_connected,
+        wifi_disconnected
     );
-
-    ESP_LOGI(TAG, "wifi_init_sta finished. Connected = %d", wifi_connected);
-
-    if (wifi_connected) {
-        /* Start the server for the first time */
-        server = start_webserver();
-    }
 }
