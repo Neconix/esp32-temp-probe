@@ -15,6 +15,7 @@
 #include "esp_http_server.h"
 #include "wifi.h"
 #include "ds18b20.h"
+#include "http_content.h"
 
 // Values from menuconfig
 #define AP_WIFI_SSID CONFIG_WIFI_SSID
@@ -53,7 +54,7 @@ static esp_err_t root_handler(httpd_req_t *req)
      * string passed in user context*/
     // const char* resp_str = (const char*) req->user_ctx;
     static char resp_str[150];
-    sprintf(resp_str, "Temp = <b>%3.2f</b> *C", temperature);
+    sprintf(resp_str, HTML_PAGE, temperature);
     httpd_resp_send(req, resp_str, HTTPD_RESP_USE_STRLEN);
 
     /* After sending the HTTP response the old HTTP request
